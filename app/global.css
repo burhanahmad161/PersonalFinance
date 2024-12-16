@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+.mainDiv{
+  display: flex;
+  flex-direction: row;
+  margin-left: 30px;
+}
+.balance-div{
+  padding: 10px;
+  border: 2px solid rgb(192, 189, 189);
+  margin-top: 4em;
+  margin-left: 2em;
+  border-radius: 10px;
+}
+.balance-div2{
+  padding: 10px;
+  border: 2px solid rgb(192, 189, 189);
+  margin-top: 4em;
+  border-radius: 10px;
+}
