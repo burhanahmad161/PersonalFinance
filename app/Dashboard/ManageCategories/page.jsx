@@ -162,7 +162,7 @@ const ManageCategories = () => {
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <Paper className="p-6 shadow-lg max-w-4xl mx-auto bg-white">
-        <h2 className="text-center text-blue-700 font-semibold mb-6">Manage Categories {userId}</h2>
+        <h2 className="text-center text-blue-700 font-semibold mb-6">Manage Categories</h2>
 
         {/* Add New Category Form */}
         <div className="flex gap-4 mb-6">
