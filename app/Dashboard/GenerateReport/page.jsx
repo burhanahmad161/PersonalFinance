@@ -20,6 +20,19 @@ import {
   TableRow,
 } from "@mui/material";
 import { Download } from "@mui/icons-material";
+import { Bar } from "react-chartjs-2"; // Import Bar chart
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+// Register Chart.js components
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const GenerateReport = () => {
   const [startDate, setStartDate] = useState("");
@@ -28,6 +41,8 @@ const GenerateReport = () => {
   const [reportData, setReportData] = useState([]);
   const [categories, setCategories] = useState([]);
   const [userId, setUserId] = useState("");
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -37,8 +52,8 @@ const GenerateReport = () => {
         const response = await fetch("/api/users", {
           method: "POST",
           headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem("jwtToken")}`
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem("jwtToken")}`
           },
           body: JSON.stringify({ action: "getId" })
         });
@@ -58,81 +73,118 @@ const GenerateReport = () => {
     fetchUserId();
   }, []);
 
+  // Fetch Categories
   useEffect(() => {
     if (userId) {
-      const fetchCategories = async () => {
-        try {
-          const response = await fetch(`/api/category/${userId}`, {
-            method: "GET",
-            headers: { "Content-Type": "application/json" },
-          });
-
-          if (response.ok) {
-            const fetchedCategories = await response.json();
-            setCategories(fetchedCategories); // Set fetched categories in state
-            setCategory(fetchedCategories[0]?.name || ""); // Set the first category as default
-            console.log("Fetched categories:", fetchedCategories);
-          } else {
-            const errorData = await response.json();
-            console.error("Error fetching categories:", errorData);
-          }
-        } catch (error) {
-          console.error("Error fetching categories in catch:", error);
-        }
-      };
-
-      fetchCategories();
+      fetchCategories(userId);
     }
   }, [userId]);
 
-
-  // Fetch the report data based on filters
-  const fetchReportData = async () => {
-    if (!startDate || !endDate) {
-      alert("Please select a valid date range.");
-      return;
-    }
-
+  const fetchCategories = async (userId) => {
+    setLoading(true);
     try {
-      const params = {
-        startDate,
-        endDate,
-        category: category || undefined,
-      };
-      const response = await axios.get("/api/reports", { params });
-      setReportData(response.data.report);
+      const response = await fetch(`/api/category/${userId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const categoriesData = await response.json();
+        setCategories(categoriesData);
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error || 'Failed to load categories'}`);
+      }
     } catch (error) {
-      console.error("Error generating report:", error);
+      alert("Error: Failed to fetch categories.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle download report (can be expanded for PDF or CSV export)
-  const handleDownloadReport = () => {
-    // For simplicity, let's assume we want to download the report as a CSV.
-    const headers = ["Name", "Amount", "Category", "Date"];
-    const rows = reportData.map((row) => [
-      row.name,
-      row.amount,
-      row.category,
-      row.date,
-    ]);
+  // Fetch Expenses
+  useEffect(() => {
+    if (userId) {
+      fetchExpenses(userId);
+    }
+  }, [userId]);
 
-    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
-    rows.forEach((row) => {
-      csvContent += row.join(",") + "\n";
+  const fetchExpenses = async (userId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/expense/${userId}`);
+      if (response.ok) {
+        const expensesData = await response.json();
+        setExpenses(expensesData);
+      } else {
+        alert("Error fetching expenses.");
+      }
+    } catch (error) {
+      alert("Error fetching expenses.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Report Data
+  const fetchReportData = () => {
+    if (!startDate || !endDate) {
+      alert("Please select both start and end dates.");
+      return;
+    }
+
+    const start = new Date(startDate).getTime();
+    const end = new Date(endDate).getTime();
+
+    if (start > end) {
+      alert("Start date must be earlier than end date.");
+      return;
+    }
+
+    const filteredExpenses = expenses.filter((expense) => {
+      const expenseTime = new Date(expense.addingTime).getTime();
+      const isWithinDateRange = expenseTime >= start && expenseTime <= end;
+      const isMatchingCategory = category ? expense.expenseCategory === category : true;
+
+      return isWithinDateRange && isMatchingCategory;
     });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "financial_report.csv");
-    link.click();
+    setReportData(
+      filteredExpenses.map((expense) => ({
+        name: expense.expenseName || "N/A",
+        amount: expense.amount || 0,
+        category: expense.expenseCategory || "Uncategorized",
+        date: expense.addingTime,
+      }))
+    );
+  };
+
+  // Chart Data Preparation
+  const chartData = {
+    labels: reportData.map((expense) => expense.name), // X-axis labels
+    datasets: [
+      {
+        label: "Amount (Rs)",
+        data: reportData.map((expense) => expense.amount), // Y-axis data
+        backgroundColor: "rgba(75, 192, 192, 0.6)",
+        borderColor: "rgba(75, 192, 192, 1)",
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: true },
+      title: { display: true, text: "Expense Report" },
+    },
   };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <Paper className="p-6 shadow-lg max-w-4xl mx-auto bg-white">
-        <h2 className="text-center text-blue-700 font-semibold mb-6">Generate Financial Report {userId}</h2>
+        <h2 className="text-center text-blue-700 font-semibold mb-6">Generate Financial Report</h2>
 
         {/* Filter Section */}
         <Box mb={4}>
@@ -173,7 +225,7 @@ const GenerateReport = () => {
                 >
                   {categories.length > 0 ? (
                     categories.map((cat) => (
-                      <MenuItem key={cat.id} value={cat.name}>
+                      <MenuItem key={cat.id} value={cat.newCategory}>
                         {cat.newCategory}
                       </MenuItem>
                     ))
@@ -194,42 +246,11 @@ const GenerateReport = () => {
           </Button>
         </Box>
 
-        {/* Report Display */}
+        {/* Report Chart */}
         {reportData.length > 0 && (
           <Box mt={4}>
             <Typography variant="h6" className="mb-4">Generated Report</Typography>
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell>Date</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {reportData.map((row, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell>{row.amount}</TableCell>
-                      <TableCell>{row.category}</TableCell>
-                      <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Box mt={2}>
-              <Button
-                variant="contained"
-                color="secondary"
-                onClick={handleDownloadReport}
-                startIcon={<Download />}
-              >
-                Download Report
-              </Button>
-            </Box>
+            <Bar data={chartData} options={chartOptions} />
           </Box>
         )}
       </Paper>

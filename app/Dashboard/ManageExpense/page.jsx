@@ -139,33 +139,6 @@ const ExpenseManager = () => {
       setMessage("Error: Failed to add expense.");
     }
   };
-  // Delete All Expenses
-  const deleteAllExpenses = async () => {
-    const confirmDelete = window.confirm("Are you sure you want to delete all your expenses? This action cannot be undone.");
-    if (!confirmDelete) {
-      setMessage("Deletion canceled.");
-      return; // Exit the function if the user cancels
-    }
-  
-    console.log("Deleting all expenses");
-    try {
-      const response = await fetch(`/api/expense/${userId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
-  
-      const data = await response.json();
-      if (response.ok) {
-        setExpenses([]); // Clear the expenses list
-        setMessage("All expenses deleted successfully!");
-      } else {
-        setMessage("Error: " + (data.error || "Unknown error"));
-      }
-    } catch (error) {
-      setMessage("Error: Failed to delete expenses.");
-    }
-  };
-  
 
   // Update expense amount
   const handleUpdateExpense = async () => {
@@ -266,14 +239,6 @@ const ExpenseManager = () => {
             fullWidth
           >
             Add Expense
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={deleteAllExpenses}
-            fullWidth
-          >
-            Clear My Expanses
           </Button>
         </div>
 

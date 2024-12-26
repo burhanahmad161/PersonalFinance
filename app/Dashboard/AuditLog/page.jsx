@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
@@ -28,73 +29,138 @@ const AuditPage = () => {
   const [auditLogs, setAuditLogs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [userId, setUserId] = useState("");
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [goals, setGoals] = useState([]);
 
+  // Fetch User ID
   useEffect(() => {
     const fetchUserId = async () => {
       try {
-        console.log("Getting User ID");
         const response = await fetch("/api/users", {
           method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
           },
-          body: JSON.stringify({ action: "getId" })
+          body: JSON.stringify({ action: "getId" }),
         });
-  
+
         const data = await response.json();
         if (response.ok) {
           setUserId(data.userId);
         } else {
-          console.log("User not authenticated", data.error);
+          console.error("User not authenticated", data.error);
         }
       } catch (error) {
         console.error("API error:", error);
         alert("Error fetching user data.");
       }
     };
-  
+
     fetchUserId();
   }, []);
 
+  // Fetch Data for Categories, Expenses, and Goals
+  useEffect(() => {
+    if (userId) {
+      fetchCategories(userId);
+      fetchExpenses(userId);
+      fetchGoals(userId);
+    }
+  }, [userId]);
 
-  // Fetch categories for filter options
-  const fetchCategories = async () => {
+  const fetchCategories = async (userId) => {
+    setLoading(true);
     try {
-      const response = await axios.get("/api/categories");
-      setCategories(response.data.categories);
+      const response = await fetch(`/api/category/${userId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      } else {
+        const errorData = await response.json();
+        setMessage(`Error: ${errorData.error || "Failed to load categories"}`);
+      }
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      setMessage("Error: Failed to fetch categories.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Fetch the audit logs based on filters
-  const fetchAuditLogs = async () => {
-    if (!startDate || !endDate) {
-      alert("Please select a valid date range.");
-      return;
-    }
-
+  const fetchExpenses = async (userId) => {
+    setLoading(true);
     try {
-      const params = {
-        startDate,
-        endDate,
-        category: category || undefined,
-      };
-      const response = await axios.get("/api/audit-logs", { params });
-      setAuditLogs(response.data.logs);
+      const response = await fetch(`/api/expense/${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setExpenses(data);
+      } else {
+        setMessage("Error fetching expenses.");
+      }
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      setMessage("Error fetching expenses.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Handle download of audit logs as CSV
+  const fetchGoals = async (userId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/goal/${userId}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGoals(data);
+      } else {
+        const errorData = await response.json();
+        setMessage(`Error: ${errorData.error || "Failed to load goals"}`);
+      }
+    } catch (error) {
+      setMessage("Error: Failed to fetch goals.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Generate Audit Logs
+  const generateAuditLogsFromExpenses = () => {
+    const expenseLogs = expenses.map((expense) => ({
+      timestamp: expense.addingTime,
+      action: "Expense Added",
+      details: `Expense "${expense.expenseName}" of amount ${expense.amount} Rs was added to the category "${expense.expenseCategory}"`,
+    }));
+
+    const categoryLogs = categories.map((category) => ({
+      timestamp: category.addingTime,
+      action: "Category Added",
+      details: `Added a category named ${category.newCategory}`,
+    }));
+
+    const goalLogs = goals.map((goal) => ({
+      timestamp: goal.dateCreated,
+      action: "Goal Added",
+      details: `Added a goal named ${goal.goalName}, with ${goal.amountSaved} Rs savings and goal amount of ${goal.goalAmount} Rs`,
+    }));
+
+    setAuditLogs([...expenseLogs, ...categoryLogs, ...goalLogs]);
+  };
+
   const handleDownloadLogs = () => {
-    const headers = ["Timestamp", "Action", "Details", "Category"];
+    const headers = ["Timestamp", "Action", "Details"];
     const rows = auditLogs.map((log) => [
       new Date(log.timestamp).toLocaleString(),
       log.action,
       log.details,
-      log.category,
     ]);
 
     let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n";
@@ -110,89 +176,41 @@ const AuditPage = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    generateAuditLogsFromExpenses();
+  }, [expenses, categories, goals]);
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <Paper className="p-6 shadow-lg max-w-4xl mx-auto bg-white">
-        <h2 className="text-center text-blue-700 font-semibold mb-6">Audit Logs {userId}</h2>
-
-        {/* Filter Section */}
-        <Box mb={4}>
-          <Typography variant="h6" className="mb-4">Filters {userId}</Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="Start Date"
-                type="date"
-                fullWidth
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <TextField
-                label="End Date"
-                type="date"
-                fullWidth
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                InputLabelProps={{
-                  shrink: true,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={4}>
-              <FormControl fullWidth>
-                <InputLabel>Category</InputLabel>
-                <Select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  label="Category"
-                >
-                  <MenuItem value="">All Categories</MenuItem>
-                  {categories.map((cat) => (
-                    <MenuItem key={cat} value={cat}>{cat}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={fetchAuditLogs}
-            className="mt-4 w-full"
-          >
-            Get Audit Logs
-          </Button>
-        </Box>
-
-        {/* Audit Logs Table */}
-        {auditLogs.length > 0 && (
-          <Box mt={4}>
-            <Typography variant="h6" className="mb-4">Audit Logs</Typography>
+        {loading ? (
+          <div className="text-center">Loading...</div>
+        ) : auditLogs.length > 0 ? (
+          <Box ml={1}>
             <TableContainer component={Paper}>
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Timestamp</TableCell>
-                    <TableCell>Action</TableCell>
-                    <TableCell>Details</TableCell>
-                    <TableCell>Category</TableCell>
+                    <TableCell style={{ fontWeight: "bold" }}>
+                      Timestamp
+                    </TableCell>
+                    <TableCell style={{ fontWeight: "bold" }}>Action</TableCell>
+                    <TableCell style={{ fontWeight: "bold" }}>Details</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {auditLogs.map((log, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                    <TableRow
+                      key={index}
+                      style={{
+                        backgroundColor:
+                          index % 2 === 0 ? "#f9f9f9" : "#e3f2fd",
+                      }}
+                    >
+                      <TableCell>
+                        {new Date(log.timestamp).toLocaleString()}
+                      </TableCell>
                       <TableCell>{log.action}</TableCell>
                       <TableCell>{log.details}</TableCell>
-                      <TableCell>{log.category}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -209,6 +227,8 @@ const AuditPage = () => {
               </Button>
             </Box>
           </Box>
+        ) : (
+          <div className="text-center">No audit logs found.</div>
         )}
       </Paper>
     </div>

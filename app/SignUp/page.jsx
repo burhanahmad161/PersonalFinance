@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { TextField, Button, Typography, Box, CircularProgress, Link } from "@mui/material";
 import { Person as PersonIcon, Email as EmailIcon, Lock as LockIcon, Phone as PhoneIcon } from "@mui/icons-material";
+import { useRouter } from "next/navigation";
 
 const CreateUser = () => {
     const [formData, setFormData] = useState({
@@ -10,6 +11,7 @@ const CreateUser = () => {
         password: "",
         phoneNumber: "",
     });
+    const router = useRouter();
 
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(false);
@@ -25,35 +27,58 @@ const CreateUser = () => {
         e.preventDefault();
         setMessage(""); // Clear previous messages
         setLoading(true);
-
-        try {
-            console.log("Form Data:", formData);
-            const response = await fetch("/api/users", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: "signup",
-                    ...formData,
-                }),
-            });
-
-            const text = await response.text();
-            console.log("Raw response text:", text);
-
-            const data = text ? JSON.parse(text) : {};
-
-            if (response.status === 201) {
-                setMessage("User created successfully!");
-            } else {
-                setMessage("Error: " + (data.error || "Unknown error"));
-            }
-        } catch (error) {
-            console.log("Error while submitting:", error);
-            setMessage("Error: Failed to create user.");
-        } finally {
-            setLoading(false);
+      
+        // Client-side validation for password, email, and ensuring the email ends with '.com'
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(formData.email)) {
+          setMessage('Invalid email format.');
+          setLoading(false);
+          return;
         }
-    };
+      
+        if (!formData.email.endsWith('.com')) {
+          setMessage('Email must end with .com');
+          setLoading(false);
+          return;
+        }
+      
+        const passwordRegex = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (!passwordRegex.test(formData.password)) {
+          setMessage('Password must be at least 8 characters long, contain a capital letter, a number, and a special character.');
+          setLoading(false);
+          return;
+        }
+      
+        try {
+          console.log("Form Data:", formData);
+          const response = await fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "signup",
+              ...formData,
+            }),
+          });
+      
+          const text = await response.text();
+          console.log("Raw response text:", text);
+      
+          const data = text ? JSON.parse(text) : {};
+      
+          if (response.status === 201) {
+            setMessage("User created successfully!");
+            router.push("/"); // Redirect to login page
+          } else {
+            setMessage("User with the same email already exists.");
+          }
+        } catch (error) {
+          console.log("Error while submitting:", error);
+          setMessage("Error: Failed to create user.");
+        } finally {
+          setLoading(false);
+        }
+      };
+      
 
     return (
         <Box

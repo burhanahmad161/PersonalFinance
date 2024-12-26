@@ -1,4 +1,4 @@
-import { getBudgetsByUserId, updateBudgetAmount } from '../../../../lib/actions/budget';
+import { getBudgetsByUserId, updateBudgetAmount, deleteBudget } from '../../../../lib/actions/budget';
 
 export const GET = async (req, { params }) => {
   const { userId } = params;
@@ -11,6 +11,18 @@ export const GET = async (req, { params }) => {
     return new Response("Server error", { status: 500 });
   }
 };
+//.................... Delete Function
+export const DELETE = async (req, { params }) => {
+  const { userId } = params;
+  try {
+    console.log("Deleting budget for user:", userId);
+    const result = await deleteBudget(userId);
+    return new Response(JSON.stringify(result), { status: 200 });
+  } catch (error) {
+    console.error("API error:", error);
+    return new Response("Server error", { status: 500 });
+  }
+} 
 
 export const PUT = async (req, { params }) => {
   try {
